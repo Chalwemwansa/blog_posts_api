@@ -2,17 +2,20 @@
 import mongoClient from '../utils/mongodb';
 import bcrypt from 'bcrypt';
 import auth from './AuthController';
+import { v4 as uuidv4 } from 'uuid';
+import redisClient from '../utils/redis';
+
 
 const UsersController = {
   // the edit user function for editing a user
   editUser: async (req, res) => {
     const body = req.body;
-    const data = {};
-    const userId = req.params.userId;
+    let data = {};
     const token = req.headers['token'];
     const allowed = ['name', 'email', 'password', 'age', 'gender', 'picture', 'about'];
     // check if the user is authenticated
-    if (!auth.isAuthenticated(token, userId)) {
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
@@ -38,7 +41,7 @@ const UsersController = {
   // the addUser function for adding a user to the db if the user does not exists
   addUser: async (req, res) => {
     const body = req.body;
-    const data = {};
+    let data = {};
     const allowed = ['name', 'email', 'password', 'age', 'gender', 'picture', 'about'];
     // filter the content
     Object.keys(body).forEach( async (key) => {
@@ -54,8 +57,7 @@ const UsersController = {
     const name = body.name || false;
     const email = body.email || false;
     const password = body.password || false;
-    
-    if (!(name && email && password)) {
+    if (!(name || email || password)) {
       res.status(400).json({ error: 'name, email and password needed' });
       return;
     }
@@ -66,18 +68,23 @@ const UsersController = {
     }
 
     const response = await mongoClient.addUser(data);
-    if (response.status === 'not successful') {
+    if (response.status === 'exists') {
+      res.status(400).json(response);
+    } else if (response.status === 'not successful') {
       res.status(500).json(response);
     } else {
-      res.status(201).json(response);
+      const token = uuidv4();
+      const key = 'auth_' + token;
+      await redisClient.set(key, response.status, 86400);
+      res.status(201).json({ token, });
     }
   },
 
   deleteUser: async (req, res) => {
-    const userId = req.params.userId;
     const token = req.headers['token'];
     // check if the user is authenticated
-    if (!auth.isAuthenticated(token, userId)) {
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }

@@ -8,13 +8,13 @@ import UsersController from '../controllers/UsersController';
 const router = Router();
 
 // routes for authentication endpoints
-router.post('/connect', AuthController.connect);
-router.post('/disconnect', AuthController.disconnect);
+router.post('/signin', AuthController.signIn);
+router.post('/signout', AuthController.signOut);
 
 // routes for the users endpoints
-router.put('/:userId', UsersController.editUser);
-router.post('/user', UsersController.addUser);
-router.delete('/:userId', UsersController.deleteUser);
+router.put('/user', UsersController.editUser);
+router.post('/signup', UsersController.addUser);
+router.delete('/user', UsersController.deleteUser);
 
 // routes for the posts endpoints
 router.get('/posts', PostsController.allPosts);

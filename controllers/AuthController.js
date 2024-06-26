@@ -5,7 +5,7 @@ import redisClient from '../utils/redis';
 import { v4 as uuidv4 } from 'uuid';
 
 const Auth = {
-  connect: async (req, res) => {
+  signIn: async (req, res) => {
     const [ email, password ] = req.body;
     const requiredFields = ['email', 'password'];
     const verify = Object.keys(data).each(key => requiredFields.includes(key));
@@ -28,7 +28,7 @@ const Auth = {
     }
   },
 
-  disconnect: async (req, res) => {
+  signOut: async (req, res) => {
     const token = req.headers['token'] || null;
     if (token === null) {
       res.status(400).json({ error: 'token header missing' });
@@ -44,13 +44,10 @@ const Auth = {
   },
 
   // checks if the user is authenticated
-  isAuthenticated: async (token, id) => {
+  getUserId: async (token) => {
     const key = 'auth_' + token;
-    const userId = await redisClient.get(key);
-    if (userId === id) {
-      return true;
-    }
-    return false;
+    const userId = await redisClient.get(key) || null;
+    return userId;
   }
 };
 
