@@ -14,6 +14,11 @@ const PostsController = {
     if (response.status === 'not successful') {
       return res.status(500).json(response);
     } else {
+      response.status.forEach( post => {
+        post['id'] = post._id.toString();
+        delete post._id;
+        delete post.createdAt;
+      })
       return res.status(200).json(response);
     }
   },
@@ -24,7 +29,7 @@ const PostsController = {
     if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
     } else {
-      userId = req.body.userId;
+      userId = req.params.userId;
       if (userId === undefined) {
         res.status(400).json({ error: 'user id not provided' });
         return;
@@ -38,6 +43,11 @@ const PostsController = {
       if (posts.status === 'not successful') {
         res.status(500).json({ error: 'Failed to get user posts' });
       } else {
+        posts.status.forEach( post => {
+          post['id'] = post._id.toString();
+          delete post._id;
+          delete post.createdAt;
+        })
         res.status(200).json(posts);
       }
     }
@@ -50,11 +60,11 @@ const PostsController = {
     if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
     } else {
-      const post = mongoClient.getPost(postId);
+      const post = await mongoClient.getPost(postId);
       if (post.owner.id !== userId) {
         res.status(401).json({ error: 'Permission denied' });
       } else {
-        const permitted = ['name', 'type', 'content', 'pictures'];
+        const permitted = ['name', 'type', 'content'];
         const body = req.body;
         let data = {};
         Object.keys(body).forEach( (key) => {
@@ -62,11 +72,16 @@ const PostsController = {
             data[key] = body[key];
           }
         });
+        const uploadedPictures = req.files.pictures;
+        if (uploadedPictures !== undefined) {
+          const pictures = await mongoClient.uploadPictures(uploadedPictures);
+          data.pictures = pictures;
+        }
         const response = await mongoClient.editPost(postId, data);
         if (response.status === 'not successful') {
           res.status(500).json(response);
         } else {
-          res.status(204);
+          res.status(204).json({});
         }
       }
     }
@@ -92,7 +107,7 @@ const PostsController = {
       if (response.status === 'not successful') {
         res.status(500).json(response);
       } else {
-        res.status(204);
+        res.status(204).json({});
       }
     }
   },
@@ -117,7 +132,7 @@ const PostsController = {
       if (response.status === 'not successful') {
         res.status(500).json(response);
       } else {
-        res.json(204);
+        res.status(204).json({});
       }
     }
   },
@@ -130,7 +145,7 @@ const PostsController = {
     } else {
       const body = req.body;
       let data = {};
-      const permitted = ['name', 'type', 'content', 'pictures'];
+      const permitted = ['name', 'type', 'content'];
       Object.keys(body).forEach( key => {
         if (permitted.includes(key)) {
           data[key] = body[key];
@@ -145,6 +160,16 @@ const PostsController = {
         id: userId,
         name: user.name,
       };
+      const uploadedPictures = req.files.pictures;
+      if (uploadedPictures !== undefined) {
+        try {
+          const pictures = await mongoClient.uploadPictures(uploadedPictures);
+          data.pictures = pictures;
+        }
+        catch {
+
+        }
+      }
       const response = await mongoClient.addPost(data);
       if (response.status === 'not successful') {
         res.status(500).json(response);
@@ -178,7 +203,7 @@ const PostsController = {
           if (response.status === 'not successful') {
             res.status(500).json(response);
           } else {
-            res.status(201);
+            res.status(204).json({});
           }
         }
       }
@@ -203,7 +228,7 @@ const PostsController = {
           if (response.status === 'not successful') {
             res.status(500).json(response);
           } else {
-            res.status(204);
+            res.status(204).json({});
           }
         }
       }

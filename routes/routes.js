@@ -12,6 +12,8 @@ router.post('/signin', AuthController.signIn);
 router.post('/signout', AuthController.signOut);
 
 // routes for the users endpoints
+router.get('/users', UsersController.getUsers);
+router.get('/user', UsersController.getUser);
 router.put('/user', UsersController.editUser);
 router.post('/signup', UsersController.addUser);
 router.delete('/user', UsersController.deleteUser);

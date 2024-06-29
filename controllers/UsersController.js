@@ -7,6 +7,62 @@ import redisClient from '../utils/redis';
 
 
 const UsersController = {
+  // get all users from the database
+  getUsers: async (req, res) => {
+    const token = req.headers['token'];
+    const userId = auth.getUserId(token);
+    if (userId === null) {
+      res.status(401).json({ error: 'Unauthorized' });
+    } else {
+      const users = await mongoClient.getUsers();
+      if (users.status === 'not successful') {
+        res.status(500).json(users);
+      } else {
+        let data = [];
+        users.status.forEach( user => {
+          let obj = {}
+          Object.keys(user).forEach( key => {
+            if (key === '_id') {
+              obj.id = user._id.toString();
+            } else if (key !== 'password') {
+              obj[key] = user[key];
+            }
+          });
+          data.push(obj);
+        });
+        res.status(200).json(data);
+      }
+    }
+  },
+
+  // function for getting a user from the database
+  getUser: async (req, res) => {
+    const token = req.headers['token'];
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
+      res.status(401).json({ error: 'Unauthorized' });
+    } else {
+      let id = req.body.id;
+      if (id === undefined) {
+        id = userId;
+      }
+      const user = await mongoClient.getUserById(id);
+      if (user === null) {
+        res.status(400).json({ error: 'user not found' });
+      } else {
+        let data = {};
+        Object.keys(user).forEach( key => {
+          if (key === '_id') {
+            data.id = user._id.toString();
+          } else if (key !== 'password') {
+            data[key] = user[key];
+          }
+        })
+        res.status(200).json(data);
+      }
+    }
+  },
+
   // the edit user function for editing a user
   editUser: async (req, res) => {
     const body = req.body;
@@ -22,19 +78,18 @@ const UsersController = {
     // filter out the values that are not needed
     Object.keys(body).forEach( async (key) => {
       if (allowed.includes(key) && body[key] !== "") {
-        if (key === password) {
-          const saltRounds = 11;
-          data[key] = await bcrypt.hash(body[key], saltRounds);
-        } else {
           data[key] = body[key];
-        }
       }
     });
+    if (data.password !== undefined) {
+      const saltRounds = 11;
+      data.password = await bcrypt.hash(data.password, saltRounds);
+    }
     const response = await mongoClient.editUser(userId, data);
     if (response.status === 'not successful') {
       res.status(500).json(response);
     } else {
-      res.status(204);
+      res.status(204).json({});
     }
   },
 
@@ -46,12 +101,7 @@ const UsersController = {
     // filter the content
     Object.keys(body).forEach( async (key) => {
       if (allowed.includes(key) && body[key] !== "") {
-        if (key === password) {
-          const saltRounds = 11;
-          data[key] = await bcrypt.hash(body[key], saltRounds);
-        } else {
-          data[key] = body[key];
-        }
+        data[key] = body[key];
       }
     });
     const name = body.name || false;
@@ -62,10 +112,8 @@ const UsersController = {
       return;
     }
 
-    if (name === '' || email === '' || password === '') {
-      res.status(400).json({ error: 'name, email and password should not be empty' });
-      return;
-    }
+    const saltRounds = 11;
+    data.password = await bcrypt.hash(data.password, saltRounds);
 
     const response = await mongoClient.addUser(data);
     if (response.status === 'exists') {
@@ -94,7 +142,7 @@ const UsersController = {
     if (response.status === 'not successful') {
       res.status(500).json(response);
     } else {
-      res.status(204);
+      res.status(204).json({});
     }
   },
 };

@@ -6,13 +6,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 const Auth = {
   signIn: async (req, res) => {
-    const [ email, password ] = req.body;
-    const requiredFields = ['email', 'password'];
-    const verify = Object.keys(data).each(key => requiredFields.includes(key));
-    if (!verify) {
+    const password = req.body.password;
+    const email = req.body.email;
+    if (password === undefined || email === undefined) {
       res.status(400).json({ error: 'email and password required' });
     } else {
-      const user = await mongoClient.getUser(email);
+      const user = await mongoClient.getUserByEmail(email);
       if (user === null) {
         res.status(404).json({ error: 'User Not Found' })
       } else {
@@ -38,7 +37,7 @@ const Auth = {
       if (result === null) {
         res.status(401).json({ error: 'Unauthorized' });
       } else {
-        res.status(204);
+        res.status(204).json({});
       }
     }
   },

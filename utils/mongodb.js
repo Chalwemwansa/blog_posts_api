@@ -1,7 +1,7 @@
 // this module connects the api to the Mongoclient on the server
 import { MongoClient, ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
-import multer from 'multer';
+import fileUpload from 'express-fileupload';
 import fs from 'fs';
 import path from 'path';
 
@@ -37,29 +37,22 @@ class Mongo {
   }
 
   // method usd to upload multiple images to the file system
-  async uploadPictures(req, res) {
-    const storage = multer.diskStorage({
-      destination: (req, picture, callback) => {
-        callback(null, 'uploads/');
-      },
-      filename: (req, picture, callback) => {
-        callback(null, `${Date.now}_${picture.originalname}`);
-      },
-    });
-
-    const upload = multer({ storage, });
-    // max number of pics to upload
-    const max = 4;
-    upload.array('pictures', max) (req, res, (err) => {
-      if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-        return ({ error: 'too many files, max is 4' });
-      }
-      if (err) {
-        console.log(`error: ${err}`);
-        return ({ error: 'failed to upload pictures' });
-      }
-      return ({ status: 'success' });
-    });
+  async uploadPictures(pictures) {
+    let pics = [];
+    let filename;
+    if (Array.isArray(pictures)) {
+      for (const picture of pictures) {
+        filename = `/uploads/${Date.now()}-${picture.name}`;
+        await picture.mv(`uploads/${filename}`);
+        pics.push(filename);
+      };
+    } else {
+      filename = `${Date.now()}_${pictures.name}`;
+      await pictures.mv(`uploads/${filename}`);
+      pics.push(filename);
+    }
+    console.log(pics);
+    return pics;
   }
 
   // method that is an helper deletes all the posts related to a user
@@ -122,7 +115,7 @@ class Mongo {
     data.createdAt = Date.now();
 
     const post = await this.session.collection('posts').insertOne(data);
-    if (!user.acknowledged) {
+    if (post.insertedCount === 0) {
       return { status: 'not successful' };
     }
     return { status: post.insertedId.toString() };
@@ -131,7 +124,18 @@ class Mongo {
   // method that edits a post that has been made in the database
   async editPost(id, data) {
     const query = { _id: new ObjectId(id) };
-    const updatedPost = await this.session.collection('posts').updateOne(query, data);
+    const pictures = data.pictures;
+    delete data.pictures;
+    let update = { $set: data };
+    const updatedPost = await this.session.collection('posts').updateOne(query, update);
+    if (pictures !== undefined) {
+      update = {
+        $push: {
+          pictures,
+        }
+      };
+      await this.session.collection('posts').updateOne(query, update);
+    }
     if (updatedPost.matchedCount === 0) {
       return { status: 'not successful' };
     }
@@ -141,7 +145,8 @@ class Mongo {
   // method that edits a give user using the email for searching
   async editUser(id, data) {
     const query = { _id: new ObjectId(id) };
-    const updatedUser = await this.session.collection('users').updateOne(query, data);
+    const update = { $set: data };
+    const updatedUser = await this.session.collection('users').updateOne(query, update);
     if (updatedUser.matchedCount === 0) {
       return { status: 'not successful' };
     }
@@ -151,7 +156,7 @@ class Mongo {
   // method that deletes a post from the db using the post id
   async deletePost(id) {
     const query = { _id: new ObjectId(id) };
-    const post = this.getPost(query);
+    const post = await this.getPost(id);
     const posts = [post];
     await this.deletePostsPictures(posts);
     const status = await this.session.collection('posts').deleteOne(query);
@@ -189,11 +194,11 @@ class Mongo {
     await this.session.collection('posts').updateMany(query, update);
     // delete all posts made by the user and their pictures
     query = {
-      'owner.id': userId,
+      'owner.id': id,
     };
-    const posts = await this.getUserPosts(query) || null;
+    const posts = await this.getUserPosts(id) || null;
     if (!(posts === null)) {
-      await this.deletePostsPictures(posts);
+      await this.deletePostsPictures(posts.status);
     }
     await this.session.collection('posts').deleteMany(query);
     query = { _id: new ObjectId(id) };
@@ -212,7 +217,6 @@ class Mongo {
     };
     // check if post contains any like by the user
     let exists = await this.session.collection('posts').findOne(query) || null;
-    query = { _id: new ObjectId(id) };
     let update;
     // if the like exists, then unlike the post
     if (exists === null) {
@@ -248,6 +252,7 @@ class Mongo {
         $pull: { likes: { id: data.id } },
       };
     }
+    query = { _id: new ObjectId(id) };
     const status = await this.session.collection('posts').updateOne(query, update);
     if (status.matchedCount === 0) {
       return { status: 'not successful' };
@@ -263,7 +268,6 @@ class Mongo {
       dislikes: { $elemMatch: { id: data.id } },
     };
     let exists = await this.session.collection('posts').findOne(query) || null;
-    query = { _id: new ObjectId(id) };
     let update;
     // if user disliked it then remove the dislike
     if (exists === null) {
@@ -297,6 +301,7 @@ class Mongo {
         $pull: { dislikes: { id: data.id } },
       }
     }
+    query = { _id: new ObjectId(id) };
     const status = await this.session.collection('posts').updateOne(query, update);
     if (status.matchedCount === 0) {
       return { status: 'not successful' };
@@ -312,11 +317,20 @@ class Mongo {
         comments: data,
       },
     }
-    const status = await this.collection('posts').updateOne(query, update);
+    const status = await this.session.collection('posts').updateOne(query, update);
     if (status.matchedCount === 0) {
       return { status: 'not successful' };
     }
     return { status: 'successful' };
+  }
+
+  // method that gets all users from the database
+  async getUsers() {
+    const users = await this.session.collection('users').find().toArray();
+    if (users === null) {
+      return { status: 'not successful' };
+    }
+    return { status: users };
   }
 
   // get all the posts in the db
