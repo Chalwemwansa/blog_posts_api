@@ -25,7 +25,7 @@ class Mongo {
 
   // deletes all pictures in the the file system that are related to a post
   async deletePictures(pictures) {
-    const root = path.join(__dirname, '..');
+    const root = path.join(__dirname, '..', 'uploads');
     pictures.forEach( async (picture) => {
       const filePath = path.join(root, picture);
       try {
@@ -40,18 +40,29 @@ class Mongo {
   async uploadPictures(pictures) {
     let pics = [];
     let filename;
+    let name;
+    let filePath;
     if (Array.isArray(pictures)) {
       for (const picture of pictures) {
-        filename = `/uploads/${Date.now()}-${picture.name}`;
-        await picture.mv(`uploads/${filename}`);
+        name = picture.name;
+        if (picture.name.split('.')[1] === 'jfif') {
+          name = `${picture.name.split('.')[0]}.jpeg`
+        }
+        filename = `${Date.now()}-${name}`;
+        filePath = path.join('uploads', filename);
+        await picture.mv(filePath);
         pics.push(filename);
       };
     } else {
-      filename = `${Date.now()}_${pictures.name}`;
-      await pictures.mv(`uploads/${filename}`);
+      name = pictures.name
+      if (pictures.name.split('.')[1] === 'jfif') {
+        name = `${pictures.name.split('.')[0]}.jpeg`
+      }
+      filename = `${Date.now()}_${name}`;
+      filePath = path.join('uploads', filename);
+      await pictures.mv(filePath);
       pics.push(filename);
     }
-    console.log(pics);
     return pics;
   }
 
@@ -131,7 +142,9 @@ class Mongo {
     if (pictures !== undefined) {
       update = {
         $push: {
-          pictures,
+          pictures: {
+            $each: pictures,
+          }
         }
       };
       await this.session.collection('posts').updateOne(query, update);
@@ -201,6 +214,8 @@ class Mongo {
       await this.deletePostsPictures(posts.status);
     }
     await this.session.collection('posts').deleteMany(query);
+    const user = await this.getUserById(id);
+    await this.deletePictures([user.picture]);
     query = { _id: new ObjectId(id) };
     const status = await this.session.collection('users').deleteOne(query);
     if (status.deletedCount === 0) {

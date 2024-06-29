@@ -81,7 +81,7 @@ const PostsController = {
         if (response.status === 'not successful') {
           res.status(500).json(response);
         } else {
-          res.status(204).json({});
+          res.status(204).json(response);
         }
       }
     }
@@ -160,14 +160,19 @@ const PostsController = {
         id: userId,
         name: user.name,
       };
-      const uploadedPictures = req.files.pictures;
-      if (uploadedPictures !== undefined) {
+      let uploadedPictures;
+      try {
+        uploadedPictures = req.files.pictures;
+      } catch (err) {
+        uploadedPictures = null;
+      }
+      if (uploadedPictures !== null) {
         try {
           const pictures = await mongoClient.uploadPictures(uploadedPictures);
           data.pictures = pictures;
         }
-        catch {
-
+        catch (err) {
+          console.log(err);
         }
       }
       const response = await mongoClient.addPost(data);

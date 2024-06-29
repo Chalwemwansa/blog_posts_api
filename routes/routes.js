@@ -20,12 +20,12 @@ router.delete('/user', UsersController.deleteUser);
 
 // routes for the posts endpoints
 router.get('/posts', PostsController.allPosts);
-router.get('/:userId/posts', PostsController.userPosts);
-router.put('/:postId', PostsController.editPost);
-router.put('/:postId/like', PostsController.likePost);
-router.put('/:postId/dislike', PostsController.dislikePost);
+router.get('/posts/:userId', PostsController.userPosts);
+router.put('/post/:postId', PostsController.editPost);
+router.put('/like/:postId', PostsController.likePost);
+router.put('/dislike/:postId', PostsController.dislikePost);
 router.post('/post', PostsController.addPost);
-router.post('/:postId/comment', PostsController.addComment);
-router.delete('/:postId', PostsController.deletePost);
+router.put('/comment/:postId', PostsController.addComment);
+router.delete('/post/:postId', PostsController.deletePost);
 
 module.exports = router;

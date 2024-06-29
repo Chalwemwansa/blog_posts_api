@@ -68,7 +68,7 @@ const UsersController = {
     const body = req.body;
     let data = {};
     const token = req.headers['token'];
-    const allowed = ['name', 'email', 'password', 'age', 'gender', 'picture', 'about'];
+    const allowed = ['name', 'email', 'password', 'age', 'gender', 'about'];
     // check if the user is authenticated
     const userId = await auth.getUserId(token);
     if (userId === null) {
@@ -85,6 +85,14 @@ const UsersController = {
       const saltRounds = 11;
       data.password = await bcrypt.hash(data.password, saltRounds);
     }
+    let pic;
+    try {
+      pic = req.files.picture;
+      const resp = await mongoClient.uploadPictures(pic);
+      data.picture = resp[0];
+    } catch {
+      pic = undefined;
+    }
     const response = await mongoClient.editUser(userId, data);
     if (response.status === 'not successful') {
       res.status(500).json(response);
@@ -97,7 +105,7 @@ const UsersController = {
   addUser: async (req, res) => {
     const body = req.body;
     let data = {};
-    const allowed = ['name', 'email', 'password', 'age', 'gender', 'picture', 'about'];
+    const allowed = ['name', 'email', 'password', 'age', 'gender', 'about'];
     // filter the content
     Object.keys(body).forEach( async (key) => {
       if (allowed.includes(key) && body[key] !== "") {
@@ -114,7 +122,15 @@ const UsersController = {
 
     const saltRounds = 11;
     data.password = await bcrypt.hash(data.password, saltRounds);
-
+    // get a picture
+    let pic;
+    try {
+      pic = req.files.picture;
+      const resp = await mongoClient.uploadPictures(pic);
+      data.picture = resp[0];
+    } catch {
+      pic = undefined;
+    }
     const response = await mongoClient.addUser(data);
     if (response.status === 'exists') {
       res.status(400).json(response);
@@ -136,8 +152,9 @@ const UsersController = {
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
-
+    const key = 'auth_' + token;
     const response = await mongoClient.deleteUser(userId);
+    await redisClient.del(key);
 
     if (response.status === 'not successful') {
       res.status(500).json(response);
