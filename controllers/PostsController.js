@@ -1,9 +1,26 @@
 // the posts controller that is responsible for handling requests to the posts
 // endpoint
+import { response } from 'express';
 import mongoClient from '../utils/mongodb';
 import auth from './AuthController';
 
 const PostsController = {
+  getPost: async (req, res) => {
+    const token = req.headers['token'] || null;
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const id = req.params.postId;
+    const response = await mongoClient.getPost(id);
+    if (response === null) {
+      return res.status(500).json({ error: 'internal server error' });
+    }
+    response.id = response._id.toString();
+    delete response._id;
+    return res.status(200).json({ status: response });
+  },
+
   allPosts: async (req, res) => {
     const token = req.headers['token'] || null;
     const userId = await auth.getUserId(token);
@@ -17,6 +34,10 @@ const PostsController = {
       response.status.forEach( post => {
         post['id'] = post._id.toString();
         delete post._id;
+        post.own = true;
+        if (post.owner.id !== userId) {
+          post.own = false;
+        }
         delete post.createdAt;
       })
       return res.status(200).json(response);
@@ -25,26 +46,33 @@ const PostsController = {
 
   userPosts: async (req, res) => {
     const token = req.headers['token'];
-    let userId = await auth.getUserId(token);
+    const userId = await auth.getUserId(token);
     if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
     } else {
-      userId = req.params.userId;
-      if (userId === undefined) {
-        res.status(400).json({ error: 'user id not provided' });
-        return;
+      let id = req.params.userId;
+      if (id === undefined) {
+        id = userId;
       }
-      const user = await mongoClient.getUserById(userId);
-      if ( user === null) {
-        res.status(400).json({ error: 'user not found' });
-        return;
+      let user;
+      try {
+        user = await mongoClient.getUserById(id);
+        if (user === null) {
+          id = userId;
+        }
+      } catch {
+        id = userId;
       }
-      const posts = await mongoClient.getUserPosts(userId);
+      const posts = await mongoClient.getUserPosts(id);
       if (posts.status === 'not successful') {
         res.status(500).json({ error: 'Failed to get user posts' });
       } else {
         posts.status.forEach( post => {
           post['id'] = post._id.toString();
+          post.own = true;
+          if (post.owner.id !== userId) {
+            post.own = false;
+          }
           delete post._id;
           delete post.createdAt;
         })
@@ -72,7 +100,12 @@ const PostsController = {
             data[key] = body[key];
           }
         });
-        const uploadedPictures = req.files.pictures;
+        let uploadedPictures;
+        try {
+          uploadedPictures = req.files.pictures;
+        } catch {
+          uploadedPictures = undefined;
+        }
         if (uploadedPictures !== undefined) {
           const pictures = await mongoClient.uploadPictures(uploadedPictures);
           data.pictures = pictures;
@@ -103,6 +136,9 @@ const PostsController = {
         id: userId,
         name: user.name,
       };
+      if (user.picture !== undefined) {
+        data.picture = user.picture;
+      }
       const response = await mongoClient.likePost(postId, data);
       if (response.status === 'not successful') {
         res.status(500).json(response);
@@ -145,7 +181,7 @@ const PostsController = {
     } else {
       const body = req.body;
       let data = {};
-      const permitted = ['name', 'type', 'content'];
+      const permitted = ['type', 'content'];
       Object.keys(body).forEach( key => {
         if (permitted.includes(key)) {
           data[key] = body[key];
@@ -160,6 +196,9 @@ const PostsController = {
         id: userId,
         name: user.name,
       };
+      if (user.picture !== undefined) {
+        data.owner.picture = user.picture;
+      }
       let uploadedPictures;
       try {
         uploadedPictures = req.files.pictures;
@@ -204,6 +243,9 @@ const PostsController = {
             name: user.name,
             comment,
           };
+          if (user.picture !== undefined) {
+            data.picture = user.picture;
+          }
           const response = await mongoClient.addComment(postId, data);
           if (response.status === 'not successful') {
             res.status(500).json(response);
@@ -235,6 +277,31 @@ const PostsController = {
           } else {
             res.status(204).json({});
           }
+        }
+      }
+    }
+  },
+
+  deleteImage: async (req, res) => {
+    const token = req.headers['token'];
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
+      res.status(401).json({ error: 'Unauthorized' });
+    } else {
+      const postId = req.params.postId;
+      const imageUrl = req.params.imageUrl;
+      const post = await mongoClient.getPost(postId);
+      if (post === null) {
+        return res.status(400).json({ error: 'post found' });
+      } else {
+        if (post.owner.id !== userId) {
+          res.status(401).json({ error: 'Unauthorized' });
+        } else {
+          const response = await mongoClient.deleteImage(postId, imageUrl);
+          if (response.error !== undefined) {
+            return res.status(500).json(response);
+          }
+          res.status(204).json({});
         }
       }
     }

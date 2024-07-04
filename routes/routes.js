@@ -8,24 +8,27 @@ import UsersController from '../controllers/UsersController';
 const router = Router();
 
 // routes for authentication endpoints
-router.post('/signin', AuthController.signIn);
-router.post('/signout', AuthController.signOut);
+router.post('/signin', AuthController.signIn);  // done
+router.post('/signout', AuthController.signOut); //almost
 
 // routes for the users endpoints
-router.get('/users', UsersController.getUsers);
-router.get('/user', UsersController.getUser);
-router.put('/user', UsersController.editUser);
-router.post('/signup', UsersController.addUser);
+router.get('/users', UsersController.getUsers); // done
+router.get('/user/:id', UsersController.getUser); // done
+router.put('/user', UsersController.editUser); // done
+router.post('/signup', UsersController.addUser);  // done
 router.delete('/user', UsersController.deleteUser);
+router.delete('/user/picture', UsersController.deleteUserPic) // done
 
 // routes for the posts endpoints
-router.get('/posts', PostsController.allPosts);
-router.get('/posts/:userId', PostsController.userPosts);
-router.put('/post/:postId', PostsController.editPost);
-router.put('/like/:postId', PostsController.likePost);
-router.put('/dislike/:postId', PostsController.dislikePost);
-router.post('/post', PostsController.addPost);
-router.put('/comment/:postId', PostsController.addComment);
-router.delete('/post/:postId', PostsController.deletePost);
+router.get('/post/:postId', PostsController.getPost);  // done
+router.get('/posts', PostsController.allPosts); // done
+router.get('/posts/:userId', PostsController.userPosts); // done
+router.put('/post/:postId', PostsController.editPost); // done
+router.put('/like/:postId', PostsController.likePost);  // done
+router.put('/dislike/:postId', PostsController.dislikePost);  // none
+router.post('/post', PostsController.addPost); // done
+router.put('/comment/:postId', PostsController.addComment); // done
+router.delete('/post/:postId', PostsController.deletePost); // done
+router.delete('/post/:postId/:imageUrl', PostsController.deleteImage); // done
 
 module.exports = router;

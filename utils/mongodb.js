@@ -1,9 +1,9 @@
 // this module connects the api to the Mongoclient on the server
 import { MongoClient, ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
-import fileUpload from 'express-fileupload';
 import fs from 'fs';
 import path from 'path';
+import { response } from 'express';
 
 const host = process.env.BLOG_HOST || '127.0.0.1';
 const port = process.env.BLOG_PORT ||  27017;
@@ -157,8 +157,26 @@ class Mongo {
 
   // method that edits a give user using the email for searching
   async editUser(id, data) {
-    const query = { _id: new ObjectId(id) };
-    const update = { $set: data };
+    let query = {
+      'owner.id': id,
+    };
+    let newdata = {}
+    let flag = false;
+    if (data.name !== undefined) {
+      newdata['owner.name'] = data.name;
+      flag = true;
+    }
+    if (data.picture !== undefined) {
+      newdata['owner.picture'] = data.picture;
+      flag = true;
+    }
+
+    let update = {
+      $set: newdata
+    }
+    await this.session.collection('posts').updateMany(query, update);
+    query = { _id: new ObjectId(id) };
+    update = { $set: data };
     const updatedUser = await this.session.collection('users').updateOne(query, update);
     if (updatedUser.matchedCount === 0) {
       return { status: 'not successful' };
@@ -374,6 +392,50 @@ class Mongo {
       return { status: 'not successful' };
     }
     return { status: posts };
+  }
+
+  // delete an image in a post
+  async deleteImage(postId, image) {
+    const query = {
+      _id: ObjectId(postId),
+    };
+    const update = {
+      $pull: { pictures: image },
+    }
+    await this.deletePictures([image]);
+    await this.session.collection('posts').updateOne(query, update);
+    if (response.matchedCount === 0) {
+      return ({ error: 'deleted 0' })
+    }
+    return ({ status: true });
+  }
+
+  // delete the image of a user
+  async deleteUserPic(userId) {
+    let query = {
+      'owner.id': userId,
+    };
+    let update = {
+      $unset: {
+        'owner.picture' : 1,
+      }
+    }
+    await this.session.collection('posts').updateMany(query, update);
+    query = {
+      _id: new ObjectId(userId),
+    };
+    update = {
+      $unset: {
+        picture: 1,
+      }
+    }
+    const user = await this.getUserById(userId);
+    await this.deletePictures([user.picture]);
+    await this.session.collection('users').updateOne(query, update);
+    if (response.matchedCount === 0) {
+      return ({ error: 'deleted 0' });
+    }
+    return ({ status: true });
   }
 }
 

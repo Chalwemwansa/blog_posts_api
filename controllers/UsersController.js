@@ -42,24 +42,25 @@ const UsersController = {
     if (userId === null) {
       res.status(401).json({ error: 'Unauthorized' });
     } else {
-      let id = req.body.id;
-      if (id === undefined) {
-        id = userId;
+     const id = req.params.id;
+      let user;
+      try {
+        user = await mongoClient.getUserById(id);
+      } catch {
+        user = null;
       }
-      const user = await mongoClient.getUserById(id);
       if (user === null) {
-        res.status(400).json({ error: 'user not found' });
-      } else {
-        let data = {};
-        Object.keys(user).forEach( key => {
-          if (key === '_id') {
-            data.id = user._id.toString();
-          } else if (key !== 'password') {
-            data[key] = user[key];
-          }
-        })
-        res.status(200).json(data);
+        user = await mongoClient.getUserById(userId);
       }
+      let data = {};
+      Object.keys(user).forEach( key => {
+        if (key === '_id') {
+          data.id = user._id.toString();
+        } else if (key !== 'password') {
+          data[key] = user[key];
+        }
+      })
+      res.status(200).json(data);
     }
   },
 
@@ -105,6 +106,7 @@ const UsersController = {
   addUser: async (req, res) => {
     const body = req.body;
     let data = {};
+    console.log(body)
     const allowed = ['name', 'email', 'password', 'age', 'gender', 'about'];
     // filter the content
     Object.keys(body).forEach( async (key) => {
@@ -159,6 +161,20 @@ const UsersController = {
     if (response.status === 'not successful') {
       res.status(500).json(response);
     } else {
+      res.status(204).json({});
+    }
+  },
+
+  deleteUserPic: async (req, res) => {
+    const token = req.headers['token'];
+    const userId = await auth.getUserId(token);
+    if (userId === null) {
+      res.status(401).json({ error: 'Unauthorized' });
+    } else {
+      const response = await mongoClient.deleteUserPic(userId);
+      if (response.error !== undefined) {
+        return res.status(500).json(response);
+      }
       res.status(204).json({});
     }
   },
