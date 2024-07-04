@@ -106,7 +106,6 @@ const UsersController = {
   addUser: async (req, res) => {
     const body = req.body;
     let data = {};
-    console.log(body)
     const allowed = ['name', 'email', 'password', 'age', 'gender', 'about'];
     // filter the content
     Object.keys(body).forEach( async (key) => {
